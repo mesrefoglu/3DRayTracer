@@ -5,6 +5,7 @@
 #include "geometry.h"
 
 const float PI = 3.14159265359f;
+const int REFLECION_MAX_DEPTH = 4;
 
 struct Light {
     vec3 position;
@@ -18,12 +19,14 @@ struct Material {
     vec2 albedo;
     vec3 diffuse_color;
     float specular_exponent;
+	float transparency;
 
 	// default constructor
-    Material() : albedo{1, 0}, diffuse_color(), specular_exponent() {}
+    Material() : albedo{1, 0}, diffuse_color(), specular_exponent(), transparency(0) {}
 
 	// constructor with color
-    Material(const vec2 &a, const vec3 &color, const float &spec) : albedo(a), diffuse_color(color), specular_exponent(spec) {}
+    Material(const vec2 &a, const vec3 &color, const float &spec, const float &tr)
+		: albedo(a), diffuse_color(color), specular_exponent(spec), transparency(tr) {}
 };
 
 struct Sphere {
@@ -70,13 +73,18 @@ bool scene_intersect(const vec3 &orig, const vec3 &dir, const std::vector<Sphere
     return spheres_dist < 1000;
 }
 
-vec3 cast_ray(const vec3 &orig, const vec3 &dir, const std::vector<Sphere> &spheres, const std::vector<Light> &lights) {
+vec3 cast_ray(const vec3 &orig, const vec3 &dir, const std::vector<Sphere> &spheres, const std::vector<Light> &lights, size_t depth = 0) {
     vec3 point, N; 		// point is where an object hits the ray, N is the normal from that sphere's center to the ray
     Material material;	// material of the sphere hit
 
-    if (!scene_intersect(orig, dir, spheres, point, N, material)) {
+    if (depth > REFLECION_MAX_DEPTH || !scene_intersect(orig, dir, spheres, point, N, material)) {
         return vec3{0.4, 0.85, 1}; // background color
     }
+
+	vec3 reflect_dir = reflect(dir, N);
+	// offset the original point to avoid occlusion by the object itself
+    vec3 reflect_orig = reflect_dir * N < 0 ? point - N * 1e-3 : point + N * 1e-3;
+    vec3 reflect_color = cast_ray(reflect_orig, reflect_dir, spheres, lights, depth + 1);
 
     float diffuse_light_intensity = 0, specular_light_intensity = 0;
     for (size_t i = 0; i < lights.size(); i++) { // add more intensity for each light source
@@ -101,12 +109,12 @@ vec3 cast_ray(const vec3 &orig, const vec3 &dir, const std::vector<Sphere> &sphe
         specular_light_intensity += pow(std::max(0.f, reflect(light_dir, N) * dir), material.specular_exponent) * lights[i].intensity;
     }
     return material.diffuse_color * diffuse_light_intensity * material.albedo[0]
-		+ vec3{1., 1., 1.} * specular_light_intensity * material.albedo[1];
+		+ vec3{1., 1., 1.} * specular_light_intensity * material.albedo[1] + reflect_color * material.transparency;
 }
 
 void render(const std::vector<Sphere> &spheres, const std::vector<Light> &lights) {
-    const int width = 3840;
-    const int height = 2160;
+    const int width = 1920;
+    const int height = 1080;
     const float hFOV = PI / 2.f; // horizontal field of view is 90 degrees (half pi)
     std::vector<vec3> framebuffer(width * height);
 
@@ -137,16 +145,17 @@ void render(const std::vector<Sphere> &spheres, const std::vector<Light> &lights
 }
 
 int main() {
-	Material ivory(vec2{0.6,  0.3}, vec3{0.4, 0.4, 0.3}, 50.);
-	Material rubber_red(vec2{0.9,  0.1}, vec3{0.3, 0.1, 0.1}, 10.);
+	Material ivory		(vec2{0.6, 0.3}, vec3{0.4, 0.4, 0.3}, 50., 0.1);
+	Material rubber_red	(vec2{0.9, 0.1}, vec3{0.3, 0.1, 0.1}, 10., 0.0);
+	Material mirror		(vec2{0.0, 10.0}, vec3{1.0, 1.0, 1.0}, 1425., 0.8);
 	
 	std::vector<Sphere> spheres;
     std::vector<Light>  lights;
 
     spheres.push_back(Sphere(vec3{-3, 0, 16}, 2, ivory));
-    spheres.push_back(Sphere(vec3{-1, -1.5, 12}, 2, rubber_red));
+    spheres.push_back(Sphere(vec3{-1, -1.5, 12}, 2, mirror));
     spheres.push_back(Sphere(vec3{1.5, -0.5, 18}, 3, rubber_red));
-    spheres.push_back(Sphere(vec3{7, 5, 18}, 4, ivory));
+    spheres.push_back(Sphere(vec3{7, 5, 18}, 4, mirror));
 
     lights.push_back(Light(vec3{-20, 20, -20}, 1.5));
     lights.push_back(Light(vec3{30, 50, 25}, 1.8));
