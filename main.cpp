@@ -6,6 +6,14 @@
 
 const float PI = 3.14159265359f;
 
+struct Light {
+    vec3 position;
+    float intensity;
+
+	// constructor
+    Light(const vec3 &p, const float &i) : position(p), intensity(i) {}
+};
+
 struct Material {
     vec3 diffuse_color;
 
@@ -55,18 +63,25 @@ bool scene_intersect(const vec3 &orig, const vec3 &dir, const std::vector<Sphere
     return spheres_dist < 1000;
 }
 
-vec3 cast_ray(const vec3 &orig, const vec3 &dir, const std::vector<Sphere> &spheres) {
-    vec3 point, N;
-    Material material;
+vec3 cast_ray(const vec3 &orig, const vec3 &dir, const std::vector<Sphere> &spheres, const std::vector<Light> &lights) {
+    vec3 point, N; 		// point is where an object hits the ray, N is the normal from that sphere's center to the ray
+    Material material;	// material of the sphere hit
 
     if (!scene_intersect(orig, dir, spheres, point, N, material)) {
         return vec3{0.4, 0.85, 1}; // background color
     }
 
-    return material.diffuse_color; // "sphere" color
+    float diffuse_light_intensity = 0;
+    for (size_t i = 0; i < lights.size(); i++) { // add more intensity for each light source
+        vec3 light_dir = (lights[i].position - point).normalize();	// direction of the light
+		// if the angle between light_dir and N is less, the result of
+		//   light_dir * N will be greater, meaning a higher intensity of light. (At least 0)
+        diffuse_light_intensity += lights[i].intensity * std::max(0.f, light_dir * N);
+    }
+    return material.diffuse_color * diffuse_light_intensity;
 }
 
-void render(const std::vector<Sphere> &spheres) {
+void render(const std::vector<Sphere> &spheres, const std::vector<Light> &lights) {
     const int width = 1024;
     const int height = 768;
     const float hFOV = PI / 2.f; // horizontal field of view is 90 degrees (half pi)
@@ -78,7 +93,7 @@ void render(const std::vector<Sphere> &spheres) {
             float x = (i + 0.5) -  width/2.;			// find x component of ray
             float y = -(j + 0.5) + height/2.;			// find y component of ray
             float z = width / (2. * tan(hFOV / 2.f));	// find z component of ray
-            framebuffer[i + j * width] = cast_ray(vec3{0, 0, 0}, vec3{x, y, z}.normalize(), spheres);
+            framebuffer[i + j * width] = cast_ray(vec3{0, 0, 0}, vec3{x, y, z}.normalize(), spheres, lights);
         }
     }
 
@@ -100,11 +115,15 @@ int main() {
 	Material mat4(vec3{0.4, 0.4, 0.4});
 	
 	std::vector<Sphere> spheres;
+    std::vector<Light>  lights;
+
     spheres.push_back(Sphere(vec3{-3, 0, 16}, 2, mat1));
     spheres.push_back(Sphere(vec3{-1, -1.5, 12}, 2, mat2));
     spheres.push_back(Sphere(vec3{1.5, -0.5, 18}, 3, mat3));
     spheres.push_back(Sphere(vec3{7, 5, 18}, 4, mat4));
 
-    render(spheres);
+    lights.push_back(Light(vec3{-20, 20, -20}, 1.5));
+
+    render(spheres, lights);
     return 0;
 }
