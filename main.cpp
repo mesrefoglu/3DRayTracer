@@ -129,16 +129,16 @@ vec3 cast_ray(const vec3 &orig, const vec3 &dir, const std::vector<Sphere> &sphe
 }
 
 void render(const std::vector<Sphere> &spheres, const std::vector<Light> &lights) {
-    const int width = 1920;
-    const int height = 1080;
+    const int width = 3840;
+    const int height = 2160;
     const float hFOV = PI / 2.f; // horizontal field of view is 90 degrees (half pi)
     std::vector<vec3> framebuffer(width * height);
 
     #pragma omp parallel for
 	for (size_t i = 0; i < width; i++) {
         for (size_t j = 0; j < height; j++) {
-            float x = (i + 0.5) -  width/2.;			// find x component of ray
-            float y = -(j + 0.5) + height/2.;			// find y component of ray
+            float x = (i + 0.5) -  width / 2.;			// find x component of ray
+            float y = -(j + 0.5) + height / 2.;			// find y component of ray
             float z = width / (2. * tan(hFOV / 2.f));	// find z component of ray
             framebuffer[i + j * width] = cast_ray(vec3{0, 0, 0}, vec3{x, y, z}.normalize(), spheres, lights);
         }
