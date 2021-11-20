@@ -62,6 +62,7 @@ template <> struct vec<3> {
     float x = 0, y = 0, z = 0;
 };
 
+typedef vec<2> vec2;
 typedef vec<3> vec3;
 typedef vec<4> vec4;
 
