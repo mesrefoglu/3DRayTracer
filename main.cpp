@@ -81,6 +81,20 @@ vec3 cast_ray(const vec3 &orig, const vec3 &dir, const std::vector<Sphere> &sphe
     float diffuse_light_intensity = 0, specular_light_intensity = 0;
     for (size_t i = 0; i < lights.size(); i++) { // add more intensity for each light source
         vec3 light_dir = (lights[i].position - point).normalize();	// direction of the light
+
+		// shadows
+        float light_distance = (lights[i].position - point).norm();
+
+		// check if the point lies in the shadow of the lights[i]
+        vec3 shadow_orig = light_dir * N < 0 ? point - N * 1e-3 : point + N * 1e-3;
+        
+		//basically uses the same idea with the rays and intersection with shadows
+		vec3 shadow_pt, shadow_N;
+        Material tmpmaterial;
+        if (scene_intersect(shadow_orig, light_dir, spheres, shadow_pt, shadow_N, tmpmaterial)
+			&& (shadow_pt - shadow_orig).norm() < light_distance) continue;
+		// shadows end
+
 		// if the angle between light_dir and N is less, the result of
 		//   light_dir * N will be greater, meaning a higher intensity of light. (At least 0)
         diffuse_light_intensity += std::max(0.f, light_dir * N) * lights[i].intensity;
