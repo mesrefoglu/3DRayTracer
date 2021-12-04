@@ -13,9 +13,9 @@ struct Light {
 };
 
 struct Material {
-	float refractive_index = 1;
-    vec4 albedo = {1, 0, 0, 0};
-    vec3 diffuse_color = {0, 0, 0};
+	float refractive_index = 1; // > 1 means refractive
+    vec4 albedo = {1, 0, 0, 0}; //[0]: diffuse_color intensity, [1]: specular light intensity, [2]: smoothness, [3]: refractiveness
+    vec3 diffuse_color = {0, 0, 0}; // color of the sphere
     float specular_exponent = 0;
 };
 
@@ -23,24 +23,21 @@ struct Sphere {
     vec3 center;
     float radius;
 	Material material;
-
-    // constructor
-    Sphere(const vec3 &c, const float &r, const Material &m) : center(c), radius(r), material(m) {}
-
-    // determine if a ray from point orig with direction dir (normalized) intersect the sphere
-    bool ray_intersect(const vec3 &orig, const vec3 &dir, float &t0) const {
-        vec3 dist = center - orig;								// distance b/w center of sphere and orig
-        float projToOrigin = dist * dir;						// distance b/w the projection of the center on the ray and orig
-        float d2 = dist * dist - projToOrigin * projToOrigin;	// sqr of the distance b/w ray and center
-        if (d2 > radius * radius) return false;					// if the d2 is greater than radius, no intersection
-        float projToIntersections = sqrt(radius * radius - d2);	// distance b/w intersections and projection
-        t0 = projToOrigin - projToIntersections;				// distance from origin to first intersection
-        float t1 = projToOrigin + projToIntersections;			// distance from origin to second intersection
-        if (t0 < 0) t0 = t1;									// this happens when ray is inside the sphere
-        if (t0 < 0) return false;								// this happens when ray is in front of the sphere
-        return true;
-    }
 };
+
+// determine if a ray from point orig with direction dir (normalized) intersect the sphere
+bool ray_sphere_intersect(const vec3 &orig, const vec3 &dir, const Sphere &s, float &t0) {
+	vec3 dist = s.center - orig;								// distance b/w center of sphere and orig
+    float projToOrigin = dist * dir;							// distance b/w the projection of the center on the ray and orig
+    float d2 = dist * dist - projToOrigin * projToOrigin;		// sqr of the distance b/w ray and center
+    if (d2 > s.radius * s.radius) return false;					// if the d2 is greater than radius, no intersection
+    float projToIntersections = sqrt(s.radius * s.radius - d2);	// distance b/w intersections and projection
+    t0 = projToOrigin - projToIntersections;					// distance from origin to first intersection
+    float t1 = projToOrigin + projToIntersections;				// distance from origin to second intersection
+    if (t0 < 0.001) t0 = t1;									// this happens when ray is inside the sphere
+    if (t0 < 0.001) return false;								// this happens when ray is in front of the sphere
+    return true;
+}
 
 // calculate the reflection using Phong Reflection Model
 vec3 reflect(const vec3 &I, const vec3 &N) {
@@ -62,7 +59,7 @@ bool scene_intersect(const vec3 &orig, const vec3 &dir, const std::vector<Sphere
     for (size_t i = 0; i < spheres.size(); i++) {
         float dist_i;
 		// check if intersects and closer than the closest sphere so far
-        if (spheres[i].ray_intersect(orig, dir, dist_i) && dist_i < spheres_dist) {
+        if (ray_sphere_intersect(orig, dir, spheres[i], dist_i) && dist_i < spheres_dist) {
             spheres_dist = dist_i; 						// make this one closer
             hit = orig + dir * dist_i;					// the point ray hits the sphere
             N = (hit - spheres[i].center).normalize();	// the normalized direction towards the hit from center
@@ -71,8 +68,8 @@ bool scene_intersect(const vec3 &orig, const vec3 &dir, const std::vector<Sphere
     }
 
     float checkerboard_dist = std::numeric_limits<float>::max();
-    if (fabs(dir.y) > 1e-3)  {
-        float d = -(orig.y+4) / dir.y; // the checkerboard plane has equation y = -4
+    if (fabs(dir.y) > 0.001)  {
+        float d = -(orig.y + 4) / dir.y; // the checkerboard plane has equation y = -4
         vec3 pt = orig + dir * d;
         if (d > 0 && fabs(pt.x) < 10 && pt.z > 10 && pt.z < 30 && d < spheres_dist) {
             checkerboard_dist = d;
@@ -95,11 +92,11 @@ vec3 cast_ray(const vec3 &orig, const vec3 &dir, const std::vector<Sphere> &sphe
     }
 
 	vec3 reflect_dir = reflect(dir, N);
-    vec3 reflect_orig = reflect_dir * N < 0 ? point - N * 1e-3 : point + N * 1e-3;
+    vec3 reflect_orig = reflect_dir * N < 0 ? point - N * 0.001 : point + N * 0.001;
     vec3 reflect_color = cast_ray(reflect_orig, reflect_dir, spheres, lights, depth + 1);
 
 	vec3 refract_dir = refract(dir, N, material.refractive_index).normalize();
-	vec3 refract_orig = refract_dir * N < 0 ? point - N * 1e-3 : point + N * 1e-3;
+	vec3 refract_orig = refract_dir * N < 0 ? point - N * 0.001 : point + N * 0.001;
 	vec3 refract_color = cast_ray(refract_orig, refract_dir, spheres, lights, depth + 1);
 
     float diffuse_light_intensity = 0, specular_light_intensity = 0;
@@ -110,7 +107,7 @@ vec3 cast_ray(const vec3 &orig, const vec3 &dir, const std::vector<Sphere> &sphe
         float light_distance = (lights[i].position - point).norm();
 
 		// check if the point lies in the shadow of the lights[i]
-        vec3 shadow_orig = light_dir * N < 0 ? point - N * 1e-3 : point + N * 1e-3;
+        vec3 shadow_orig = light_dir * N < 0 ? point - N * 0.001 : point + N * 0.001;
         
 		//basically uses the same idea with the rays and intersection with shadows
 		vec3 shadow_pt, shadow_N;
@@ -134,7 +131,7 @@ void render(const std::vector<Sphere> &spheres, const std::vector<Light> &lights
     const float hFOV = PI / 2.f; // horizontal field of view is 90 degrees (half pi)
     std::vector<vec3> framebuffer(width * height);
 
-    #pragma omp parallel for
+    #pragma omp parallel for //multi thread
 	for (size_t i = 0; i < width; i++) {
         for (size_t j = 0; j < height; j++) {
             float x = (i + 0.5) -  width / 2.;			// find x component of ray
