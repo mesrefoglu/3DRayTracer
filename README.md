@@ -1,3 +1,3 @@
 # 3DRayTracer
 
-![example iamge](https://github.com/mesrefoglu/3DRayTracer/out.jpg)
+![example image](https://github.com/mesrefoglu/3DRayTracer/blob/main/out.jpg)
